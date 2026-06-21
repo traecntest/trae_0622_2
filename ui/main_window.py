@@ -269,15 +269,29 @@ class MainWindow(QMainWindow):
         self.lbl_status.setText(f"已载入素材：{data.get('title','')}")
 
     def _collect_paste(self):
+        from utils.dom_cleaner import dom_cleaner
         clip = QApplication.clipboard()
         mime = clip.mimeData()
+        raw_html = ""
+        raw_text = ""
         if mime.hasHtml():
-            raw = mime.html()
-        elif mime.hasText():
-            raw = mime.text()
-        else:
-            QMessageBox.information(self, "提示", "剪贴板无内容")
+            raw_html = mime.html() or ""
+        if mime.hasText():
+            raw_text = mime.text() or ""
+
+        cleaned_text = ""
+        source_html = raw_html
+        if raw_html:
+            cleaned = dom_cleaner.clean(raw_html)
+            cleaned_text = cleaned.text.strip()
+        if not cleaned_text and raw_text:
+            source_html = raw_text
+            cleaned_text = raw_text.strip()
+
+        if not cleaned_text:
+            QMessageBox.information(self, "提示", "剪贴板没有可采集的文本内容")
             return
+
         title, ok = QInputDialog.getText(self, "采集素材", "素材标题：")
         if not ok:
             return
@@ -287,7 +301,7 @@ class MainWindow(QMainWindow):
             on_ok=self._on_collected,
             on_err=lambda e: QMessageBox.warning(self, "采集失败", e),
             label="采集素材", parent=self,
-            html=raw, source_url="", title=title or "采集素材", tags=[],
+            html=source_html, source_url="", title=title or "采集素材", tags=[],
         )
 
     def _on_collected(self, data: dict):
@@ -309,7 +323,7 @@ class MainWindow(QMainWindow):
             self, "导入 DOCX", "", "Word 文档 (*.docx)"
         )
         if path:
-            self.editor._import_docx()
+            self.editor.load_docx(path)
             self.left_panel.load_document(path)
 
     def _on_docs_dropped(self, files: list):
@@ -317,7 +331,7 @@ class MainWindow(QMainWindow):
             self._merge_with_files(files)
         else:
             self.left_panel.load_document(files[0])
-            self.editor._import_docx()
+            self.editor.load_docx(files[0])
 
     def _merge_docs(self):
         paths, _ = QFileDialog.getOpenFileNames(

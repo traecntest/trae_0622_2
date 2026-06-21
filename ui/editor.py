@@ -145,6 +145,27 @@ class EditorPanel(QWidget):
         tb.addAction("导出DOCX", self._export_docx)
         tb.addAction("清空", self.editor.clear)
 
+    def load_docx(self, file_path: str) -> bool:
+        try:
+            from docx import Document
+            doc = Document(file_path)
+            text = "\n".join(p.text for p in doc.paragraphs)
+            self.set_text(text, "")
+            self.material_loaded.emit(file_path)
+            self.status_message.emit(f"已导入 {file_path.split('/')[-1]}")
+            return True
+        except Exception as e:
+            QMessageBox.warning(self, "导入失败", str(e))
+            return False
+
+    def _import_docx(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "导入 DOCX", "", "Word 文档 (*.docx)"
+        )
+        if not path:
+            return
+        self.load_docx(path)
+
     def _set_font(self, font: QFont):
         fmt = QTextCharFormat()
         fmt.setFont(font)

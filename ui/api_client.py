@@ -76,6 +76,15 @@ class ApiClient:
     def ai_history(self) -> list:
         return self._get("/api/ai/history")
 
+    def ai_status(self) -> dict:
+        try:
+            return self._get("/api/ai/status")
+        except ApiError:
+            return {"available": False}
+
+    def ai_reload(self, settings: dict) -> dict:
+        return self._post("/api/ai/reload", settings)
+
     def check_docx(self, file_path: str) -> dict:
         return self._post("/api/docx/check", {"file_path": file_path})
 

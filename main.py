@@ -36,7 +36,35 @@ def main():
         QSplitter::handle:vertical { height:2px; }
         QProgressBar { border-radius:4px; border:1px solid #d0d0d0; text-align:center; height:16px; }
         QProgressBar::chunk { background:#6366f1; border-radius:3px; }
-        QLineEdit, QComboBox, QSpinBox { padding:4px 6px; border:1px solid #d0d0d0; border-radius:4px; background:#ffffff; }
+        QLineEdit, QSpinBox { padding:4px 6px; border:1px solid #d0d0d0; border-radius:4px; background:#ffffff; color:#1f2937; }
+        QComboBox { padding:4px 6px; border:1px solid #d0d0d0; border-radius:4px; background:#ffffff; color:#1f2937; min-height:18px; }
+        QComboBox:editable { background:#ffffff; color:#1f2937; }
+        QComboBox:hover { border-color:#6366f1; }
+        QComboBox:disabled { background:#f0f0f0; color:#9ca3af; }
+        QComboBox::drop-down { border:none; width:24px; }
+        QComboBox QAbstractItemView {
+            border:1px solid #d0d0d0;
+            border-radius:4px;
+            background:#ffffff;
+            color:#1f2937;
+            selection-background-color:#6366f1;
+            selection-color:#ffffff;
+            outline:0;
+            padding:2px;
+        }
+        QComboBox QAbstractItemView::item {
+            padding:6px 8px;
+            color:#1f2937;
+            background:#ffffff;
+        }
+        QComboBox QAbstractItemView::item:hover {
+            background:#eef2ff;
+            color:#1f2937;
+        }
+        QComboBox QAbstractItemView::item:selected {
+            background:#6366f1;
+            color:#ffffff;
+        }
     """)
 
     window = MainWindow()

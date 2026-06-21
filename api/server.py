@@ -194,6 +194,43 @@ def _register_routes(app: FastAPI):
     async def ai_history():
         return await local_db.list_ai_history()
 
+    @app.get("/api/ai/status")
+    async def ai_status():
+        from core.ai_dispatcher import ai_dispatcher as _disp
+        return {
+            "available": _disp.is_available(),
+            "provider": _disp.cfg.provider,
+            "model": _disp.cfg.model,
+            "base_url": _disp.cfg.base_url,
+            "fallback_local": _disp.cfg.fallback_local,
+        }
+
+    @app.post("/api/ai/reload")
+    async def ai_reload(body: dict):
+        from core.ai_dispatcher import AIDispatcher, ai_dispatcher as _disp
+        from core.doc_engine import doc_engine
+        cfg = config.AIConfig()
+        cfg.provider = body.get("provider", cfg.provider)
+        cfg.api_key = body.get("api_key", "")
+        cfg.base_url = body.get("base_url", cfg.base_url)
+        cfg.model = body.get("model", cfg.model)
+        cfg.temperature = float(body.get("temperature", cfg.temperature))
+        cfg.max_tokens = int(body.get("max_tokens", cfg.max_tokens))
+        cfg.timeout = float(body.get("timeout", cfg.timeout))
+        cfg.fallback_local = bool(body.get("fallback_local", cfg.fallback_local))
+        config.AIConfig.provider = cfg.provider
+        config.AIConfig.api_key = cfg.api_key
+        config.AIConfig.base_url = cfg.base_url
+        config.AIConfig.model = cfg.model
+        config.AIConfig.temperature = cfg.temperature
+        config.AIConfig.max_tokens = cfg.max_tokens
+        config.AIConfig.timeout = cfg.timeout
+        config.AIConfig.fallback_local = cfg.fallback_local
+        new_disp = AIDispatcher(cfg, on_event=_disp.on_event)
+        _disp.__dict__.update(new_disp.__dict__)
+        doc_engine.ai = _disp
+        return {"ok": True, "available": _disp.is_available(), "model": cfg.model}
+
     @app.post("/api/docx/check")
     async def check_docx(req: FixRequest):
         return doc_engine.check_docx(req.file_path).to_dict()

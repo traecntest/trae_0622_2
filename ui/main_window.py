@@ -16,6 +16,7 @@ from ui.api_client import api_client
 from ui.document_tree import LeftPanel
 from ui.editor import EditorPanel
 from ui.ai_panel import AIPanel
+from ui.ai_settings import AISettingsDialog, load_settings, apply_settings_to_config
 from ui.workers import run_api
 
 
@@ -105,6 +106,11 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda checked=False, r=role: self._quick_ai(r))
             m_ai.addAction(act)
 
+        m_ai.addSeparator()
+        act_cfg = QAction("AI 模型配置...", self)
+        act_cfg.triggered.connect(self._open_ai_settings)
+        m_ai.addAction(act_cfg)
+
         m_gw = mb.addMenu("公文(&G)")
         m_gw.addAction("格式合规校验", self._check_format)
         m_gw.addAction("批量格式修正", self._fix_format)
@@ -128,15 +134,24 @@ class MainWindow(QMainWindow):
         tb.addAction("多源合并", self._merge_docs)
         tb.addSeparator()
         tb.addAction("一键流水线", self._run_pipeline)
+        tb.addSeparator()
+        act_ai_cfg = QAction("AI 配置", self)
+        act_ai_cfg.triggered.connect(self._open_ai_settings)
+        tb.addAction(act_ai_cfg)
         self.addToolBar(tb)
 
     def _build_statusbar(self):
         sb = QStatusBar()
         self.lbl_conn = QLabel("服务: 连接中...")
         self.lbl_conn.setStyleSheet("color:#d97706; padding:0 8px;")
+        self.lbl_ai = QLabel("AI: 未就绪")
+        self.lbl_ai.setStyleSheet("color:#cf222e; padding:0 8px;")
+        self.lbl_ai.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lbl_ai.mousePressEvent = lambda e: self._open_ai_settings()
         self.lbl_task = QLabel("任务: 0")
         self.lbl_status = QLabel("就绪")
         sb.addWidget(self.lbl_conn)
+        sb.addWidget(self.lbl_ai)
         sb.addPermanentWidget(self.lbl_task)
         sb.addPermanentWidget(self.lbl_status)
         self.setStatusBar(sb)
@@ -153,6 +168,7 @@ class MainWindow(QMainWindow):
     def _post_init(self):
         self._check_server()
         QTimer.singleShot(2000, self.left_panel.refresh_materials)
+        QTimer.singleShot(2500, self._apply_saved_ai_settings)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll_status)
         self._timer.start(3000)
@@ -185,6 +201,54 @@ class MainWindow(QMainWindow):
             on_ok=lambda r: self.lbl_task.setText(f"任务: {len(r)}"),
             on_err=lambda e: None,
             label="任务列表", parent=self,
+        )
+        self._refresh_ai_status()
+
+    def _refresh_ai_status(self):
+        run_api(
+            api_client.ai_status,
+            on_ok=self._on_ai_status,
+            on_err=lambda e: self._on_ai_status({"available": False}),
+            label="AI 状态", parent=self,
+        )
+
+    def _on_ai_status(self, data: dict):
+        if data.get("available"):
+            model = data.get("model", "?")
+            self.lbl_ai.setText(f"AI: {model}")
+            self.lbl_ai.setStyleSheet("color:#1a7f37; padding:0 8px;")
+            self.lbl_ai.setToolTip(f"模型就绪: {data.get('base_url','')}")
+        else:
+            self.lbl_ai.setText("AI: 本地回退（未配置）")
+            self.lbl_ai.setStyleSheet("color:#d97706; padding:0 8px;")
+            self.lbl_ai.setToolTip("点击配置 AI 模型")
+
+    def _apply_saved_ai_settings(self):
+        s = load_settings()
+        if s.get("api_key"):
+            apply_settings_to_config(s)
+            run_api(
+                api_client.ai_reload,
+                on_ok=lambda r: self._refresh_ai_status(),
+                on_err=lambda e: None,
+                label="应用 AI 配置", parent=self,
+                settings=s,
+            )
+        else:
+            self._refresh_ai_status()
+
+    def _open_ai_settings(self):
+        dlg = AISettingsDialog(self)
+        dlg.settings_saved.connect(self._on_ai_reloaded)
+        dlg.exec()
+
+    def _on_ai_reloaded(self, settings: dict):
+        run_api(
+            api_client.ai_reload,
+            on_ok=lambda r: self._refresh_ai_status(),
+            on_err=lambda e: QMessageBox.warning(self, "失败", f"配置生效失败: {e}"),
+            label="重载 AI 配置", parent=self,
+            settings=settings,
         )
 
     def _load_material(self, mid: str):

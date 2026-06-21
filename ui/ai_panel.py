@@ -29,6 +29,7 @@ class AIPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_result = ""
+        self._current_worker = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(6)
@@ -62,10 +63,15 @@ class AIPanel(QWidget):
         btn_row = QHBoxLayout()
         self.btn_run = QPushButton("执行 AI 处理")
         self.btn_run.setStyleSheet("padding:6px; font-weight:bold;")
+        self.btn_cancel = QPushButton("取消")
+        self.btn_cancel.setStyleSheet("padding:6px;")
+        self.btn_cancel.setVisible(False)
+        self.btn_cancel.clicked.connect(self._on_cancel)
         self.btn_apply = QPushButton("应用结果")
         self.btn_apply.setEnabled(False)
         self.btn_apply.clicked.connect(self._on_apply)
         btn_row.addWidget(self.btn_run)
+        btn_row.addWidget(self.btn_cancel)
         btn_row.addWidget(self.btn_apply)
         layout.addLayout(btn_row)
 
@@ -107,16 +113,18 @@ class AIPanel(QWidget):
         extra = self.instruction_edit.text().strip() or ""
         self._set_running(True)
         self.status_message.emit(f"正在执行 {ROLE_LABELS[role]}...")
-        run_api(
+        self._current_worker = run_api(
             api_client.ai_process,
             on_ok=self._on_ai_done,
             on_err=self._on_ai_err,
+            on_cancel=self._on_ai_cancelled,
             on_start=lambda l: None,
             label=ROLE_LABELS[role], parent=self,
             text=text, role=role, style=style, extra_instruction=extra,
         )
 
     def _on_ai_done(self, result: dict):
+        self._current_worker = None
         self._set_running(False)
         self._current_result = result.get("text", "")
         self.result_edit.setPlainText(self._current_result)
@@ -132,13 +140,30 @@ class AIPanel(QWidget):
         self._load_history()
 
     def _on_ai_err(self, err: str):
+        self._current_worker = None
         self._set_running(False)
         self.result_edit.setPlainText(f"处理失败：{err}")
         self.status_message.emit(f"请求失败：{err}")
 
+    def _on_ai_cancelled(self):
+        self._current_worker = None
+        self._set_running(False)
+        self.status_message.emit("AI 处理已取消")
+
+    def _on_cancel(self):
+        if self._current_worker and self._current_worker.isRunning():
+            self._current_worker.cancel()
+            self.status_message.emit("正在取消...")
+            self.btn_cancel.setEnabled(False)
+
     def _set_running(self, on: bool):
         self.progress.setVisible(on)
-        self.btn_run.setEnabled(not on)
+        self.btn_run.setVisible(not on)
+        self.btn_cancel.setVisible(on)
+        self.btn_cancel.setEnabled(on)
+        self.role_combo.setEnabled(not on)
+        self.style_combo.setEnabled(not on and self.role_combo.currentData() == "style")
+        self.instruction_edit.setEnabled(not on)
 
     def _on_apply(self):
         if self._current_result:

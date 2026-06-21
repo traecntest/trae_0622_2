@@ -47,4 +47,5 @@ def run_api(func: Callable[..., Any], on_ok: Callable[[Any], None],
         worker.started_request.connect(on_start)
     worker.finished_ok.connect(worker.deleteLater)
     worker.finished_err.connect(worker.deleteLater)
+    worker.start()
     return worker
